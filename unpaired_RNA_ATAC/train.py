@@ -63,7 +63,7 @@ def train_with_early_stopping(models, optimizers,
                  #optimizers[1], optimizers[2],
                  optimizers[2], optimizers[3],
                  R2R_train_epoch=num_epochs_ae, A2A_train_epoch=num_epochs_ae,
-                 batch_size=configs.BATCH_SIZE, patience=20)
+                 batch_size=configs.BATCH_SIZE, patience=50)
 
     # step 2: training translators
     print('training translators started......')
