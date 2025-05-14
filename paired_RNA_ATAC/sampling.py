@@ -16,7 +16,7 @@ matplotlib.use('Agg')
 
 device = configs.DEVICE
 fold_idx = 1
-models = torch.load(f'/scdct/models.pth')
+models = torch.load(f'./paired_RNA_ATAC/models.pth')
 RNA_data = preprocess_rna_data(configs.RNA_PATH)
 ATAC_data = preprocess_atac_data(configs.ATAC_PATH)
 RNA_input_dim, ATAC_input_dim, chrom_list = get_input_dimensions(RNA_data, ATAC_data)
@@ -70,8 +70,8 @@ all_rna_test_pre = np.concatenate(all_rna_test_pre, axis=0)
 all_atac_test_pre = np.concatenate(all_atac_test_pre, axis=0)
 
 rna_test_pre_df = pd.DataFrame(all_rna_test_pre)
-rna_test_pre_df.to_csv(f'/scdct/predrna.csv',index=False)
+rna_test_pre_df.to_csv(f'./paired_RNA_ATAC/predrna.csv',index=False)
 
 atac_test_pre_df = pd.DataFrame(all_atac_test_pre)
-atac_test_pre_df.to_csv(f'/scdct/predatac.csv',index=False)
+atac_test_pre_df.to_csv(f'./paired_RNA_ATAC/predatac.csv',index=False)
 

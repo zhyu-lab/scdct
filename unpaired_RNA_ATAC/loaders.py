@@ -1,0 +1,48 @@
+import numpy as np
+import torch
+from torch.utils.data import DataLoader, Dataset
+import scanpy as sc
+from autoencoder import *
+import configs
+
+class OriginalDataset(Dataset):
+    def __init__(self, data):
+        self.data = data
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        sample = self.data[idx]
+        if not isinstance(sample, torch.Tensor):
+            sample = torch.tensor(sample, dtype=torch.float32)
+        return sample
+
+class LatentDataset(torch.utils.data.Dataset):
+    def __init__(self, file_path):
+        self.data = pd.read_csv(file_path).values
+        if self.data.ndim == 2:
+            self.data = self.data[:, np.newaxis, :]
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        sample = self.data[idx]
+        if not isinstance(sample, torch.Tensor):
+            sample = torch.tensor(sample, dtype=torch.float32)
+        return sample
+
+def create_data_loaders(RNA_data, ATAC_data, fold_idx=1):
+    # Split dataset into training, validation, and test sets
+    split_ids = unpaired_split_dataset(RNA_data, ATAC_data)
+    train_id_r, train_id_a, validation_id_r, validation_id_a, test_id_r, test_id_a = split_ids[1]
+    save_dataset_ids(RNA_data, ATAC_data, train_id_r, train_id_a, validation_id_r, validation_id_a, test_id_r, test_id_a, fold_idx)
+
+    RNA_data_train, RNA_data_val, RNA_data_test = RNA_data[train_id_r], RNA_data[validation_id_r], RNA_data[test_id_r]
+    ATAC_data_train, ATAC_data_val, ATAC_data_test = ATAC_data[train_id_a], ATAC_data[validation_id_a], ATAC_data[test_id_a]
+    rna_tensor_train, rna_tensor_val, rna_tensor_test = convert_to_tensors(RNA_data_train, RNA_data_val, RNA_data_test)
+    atac_tensor_train, atac_tensor_val, atac_tensor_test = convert_to_tensors(ATAC_data_train, ATAC_data_val,
+                                                                              ATAC_data_test)
+
+    return rna_tensor_train, rna_tensor_val, rna_tensor_test, atac_tensor_train, atac_tensor_val, atac_tensor_test

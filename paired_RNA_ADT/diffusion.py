@@ -8,16 +8,37 @@ import os
 import matplotlib
 import torch.nn.functional as F
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from autoencoder import *
 device = configs.DEVICE
 batch_size = configs.BATCH_SIZE
+
 
 def linear_beta_schedule(timesteps, start=0.0001, end=0.02):
     """
     Returns a linear schedule of betas from start to end with an input timestep
     """
     return torch.linspace(start, end, timesteps)
+
+
+def get_index_from_list(vals, t, x_shape):
+    """
+    Returns a specific index t of a passed list of values vals
+    while considering the batch dimension.
+    """
+    batch_size = t.shape[0]
+    out = vals.gather(-1, t.cpu())
+    return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(t.device)
+
+
+def forward_diffusion_sample(x_0, t, device=device, noise=None):
+
+    if noise is None:
+        noise = torch.randn_like(x_0)
+    sqrt_alphas_cumprod_t = get_index_from_list(sqrt_alphas_cumprod, t, x_0.shape)
+    sqrt_one_minus_alphas_cumprod_t = get_index_from_list(
+        sqrt_one_minus_alphas_cumprod, t, x_0.shape
+    )
+    return sqrt_alphas_cumprod_t.to(device) * x_0.to(device) + sqrt_one_minus_alphas_cumprod_t.to(device) * noise.to(device)
 
 def ddim_sampling_parameters(num_steps, eta=0.0):
     device = configs.DEVICE
@@ -41,33 +62,6 @@ def ddim_sampling_parameters(num_steps, eta=0.0):
         'sigmas': sigmas
     }
 
-
-
-
-def get_index_from_list(vals, t, x_shape):
-    """
-    Returns a specific index t of a passed list of values vals
-    while considering the batch dimension.
-    """
-    batch_size = t.shape[0]
-    out = vals.gather(-1, t.cpu())
-    return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(t.device)
-
-def forward_diffusion_sample(x_0, t, device=device, noise=None):
-    """
-    对 x_0 添加噪声，返回 x_t
-    """
-    if noise is None:
-        noise = torch.randn_like(x_0)
-    sqrt_alphas_cumprod_t = get_index_from_list(sqrt_alphas_cumprod, t, x_0.shape)
-    sqrt_one_minus_alphas_cumprod_t = get_index_from_list(
-        sqrt_one_minus_alphas_cumprod, t, x_0.shape
-    )
-    return sqrt_alphas_cumprod_t.to(device) * x_0.to(device) + sqrt_one_minus_alphas_cumprod_t.to(device) * noise.to(device)
-
-
-
-
 # Define beta schedule
 timesteps = configs.TIMESTEPS
 betas = linear_beta_schedule(timesteps=timesteps)
@@ -80,10 +74,9 @@ sqrt_recip_alphas = torch.sqrt(1.0 / alphas)
 sqrt_alphas_cumprod = torch.sqrt(alphas_cumprod)
 sqrt_one_minus_alphas_cumprod = torch.sqrt(1. - alphas_cumprod)
 posterior_variance = betas * (1. - alphas_cumprod_prev) / (1. - alphas_cumprod)
-bce_loss_fn = nn.BCELoss()
+
 distance_fn = nn.MSELoss()
 LAMBDA = 15
-
 
 
 def train_translators(ep, genA, genB, optimizerA, optimizerB, data_loaderA, data_loaderB,iterations = 100):
@@ -101,8 +94,6 @@ def train_translators(ep, genA, genB, optimizerA, optimizerB, data_loaderA, data
     data_loaderB = data_loaderB[indices]
 
     num_batches = data_loaderA.size(0) // batch_size
-
-    # Training Diffusion Models (genA, genB)
     for i in pbar:
         optimizerA.zero_grad()
         optimizerB.zero_grad()
@@ -118,17 +109,15 @@ def train_translators(ep, genA, genB, optimizerA, optimizerB, data_loaderA, data
         tB = torch.randint(0, timesteps, (xB0.shape[0],), device=device).long()
         noiseA = torch.randn_like(xA0)
         noiseB = torch.randn_like(xB0)
-
         xAtA = forward_diffusion_sample(xA0, tA, device, noiseA)
         xBtB = forward_diffusion_sample(xB0, tB, device, noiseB)
         xAtB = forward_diffusion_sample(xA0, tB, device, noiseA)
         xBtA = forward_diffusion_sample(xB0, tA, device, noiseB)
 
-
         predA = genA(torch.cat([xAtA, xB0], dim=1), tA)
         predB = genB(torch.cat([xBtB, xA0], dim=1), tB)
 
-        diffusion_loss = configs.weight_rna_to_atac * distance_fn(predA, noiseA) + configs.weight_atac_to_rna * distance_fn(predB, noiseB)
+        diffusion_loss = configs.weight_rna_to_adt * distance_fn(predA, noiseA) + configs.weight_adt_to_rna * distance_fn(predB, noiseB)
 
         diffusion_loss.backward()
         optimizerA.step()
@@ -141,7 +130,6 @@ def train_translators(ep, genA, genB, optimizerA, optimizerB, data_loaderA, data
 
 
     avg_diffusion_loss = diff_loss / iterations
-
 
     return avg_diffusion_loss
 
@@ -266,22 +254,17 @@ def evaluate_translators(genA, genB, data_loaderA, data_loaderB,ep):
             tB = torch.randint(0, timesteps, (batch_size,), device=device).long()
             noiseA = torch.randn_like(xA0)
             noiseB = torch.randn_like(xB0)
-
             xAtA = forward_diffusion_sample(xA0, tA, device, noiseA)
             xBtB = forward_diffusion_sample(xB0, tB, device, noiseB)
             xAtB = forward_diffusion_sample(xA0, tB, device, noiseA)
             xBtA = forward_diffusion_sample(xB0, tA, device, noiseB)
-
-
-
             predA = genA(torch.cat([xAtA, xB0], dim=1), tA)
             predB = genB(torch.cat([xBtB, xA0], dim=1), tB)
 
-            diffusion_loss = configs.weight_rna_to_atac * distance_fn(predA, noiseA) + configs.weight_atac_to_rna * distance_fn(predB, noiseB)
+            diffusion_loss = configs.weight_rna_to_adt * distance_fn(predA, noiseA) + configs.weight_adt_to_rna * distance_fn(predB, noiseB)
             total_diff_loss += diffusion_loss.item() * batch_size
 
         avg_diff_loss = total_diff_loss / count
-
         return avg_diff_loss
 
 
@@ -308,17 +291,14 @@ def test_translators(genA, genB, data_loaderA, data_loaderB):
 
             noiseA = torch.randn_like(xA0)
             noiseB = torch.randn_like(xB0)
-
             xAtA = forward_diffusion_sample(xA0, tA, device, noiseA)
             xBtB = forward_diffusion_sample(xB0, tB, device, noiseB)
             xAtB = forward_diffusion_sample(xA0, tB, device, noiseA)
             xBtA = forward_diffusion_sample(xB0, tA, device, noiseB)
-
-
             predA = genA(torch.cat([xAtA, xB0], dim=1), tA)
             predB = genB(torch.cat([xBtB, xA0], dim=1), tB)
 
-            diffusion_loss = configs.weight_rna_to_atac * distance_fn(predA, noiseA) + configs.weight_atac_to_rna * distance_fn(predB, noiseB)
+            diffusion_loss = configs.weight_rna_to_adt * distance_fn(predA, noiseA) + configs.weight_adt_to_rna * distance_fn(predB, noiseB)
             total_diff_loss += diffusion_loss.item() * batch_size
 
         avg_diff_loss = total_diff_loss / count

@@ -14,7 +14,6 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-# -*- coding: utf-8 -*-
 os.environ['TORCH_USE_CUDA_DSA'] = '1'
 
 device = configs.DEVICE
@@ -44,7 +43,6 @@ def get_model(plain=False):
             dim=64,
             out_dim=1,
         )
-    # model = model.to(device)
     print("Num params: ", sum(p.numel() for p in model.parameters()))
     return model
 
@@ -57,8 +55,8 @@ def train_with_early_stopping(models, optimizers,
     best_val_loss = float('inf')
     counter = 0
 
-    # # step 1: pretraining AE
-    print('Pretraining autoencoders......')
+    # # step 1: training AE
+    print('training autoencoders......')
     train_ed(models[2], models[3], models[4], models[5],
                  data_loaderA_train, data_loaderB_train,
                  data_loaderA_val, data_loaderB_val,
@@ -98,7 +96,7 @@ def train_with_early_stopping(models, optimizers,
             best_val_loss = avg_val_diff_loss
             counter = 0
             fold_idx = 1
-            save_dir = f'/scdct/'
+            save_dir = f'./paired_RNA_ATAC/'
             os.makedirs(save_dir, exist_ok=True)
             torch.save(models[0], os.path.join(save_dir, 'best_model_genA.pth'))
             torch.save(models[1], os.path.join(save_dir, 'best_model_genB.pth'))

@@ -2,9 +2,8 @@ import torch
 
 
 
-# 10X
-RNA_PATH = "/scdct/data/rna.h5ad"
-ATAC_PATH = "/scdct/data/atac.h5ad"
+RNA_PATH = "./RNA.h5ad"
+ATAC_PATH = "./ATAC.h5ad"
 
 TIMESTEPS = 1000
 RELEASE_TIME = 0
