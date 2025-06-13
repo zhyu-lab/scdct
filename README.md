@@ -1,6 +1,6 @@
 # scDCT
 
- A conditional di usion-based deep learning model for high- delity single-cell cross-modality translation
+ A conditional diffusion-based deep learning model for high- delity single-cell cross-modality translation
 
 ## Requirements
 
